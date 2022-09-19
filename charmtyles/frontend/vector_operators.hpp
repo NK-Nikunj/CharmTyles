@@ -14,8 +14,8 @@
 
 #pragma once
 
-#include <charmtyles/frontend/AST.hpp>
 #include <charmtyles/frontend/vector.hpp>
+#include <charmtyles/util/AST.hpp>
 
 namespace ct {
 
@@ -24,6 +24,13 @@ namespace ct {
     {
         return VecExpression<LHS, RHS>(
             lhs, rhs, lhs.size(), ct::frontend::Operation::add);
+    }
+
+    template <typename LHS, typename RHS>
+    VecExpression<LHS, RHS> operator-(LHS const& lhs, RHS const& rhs)
+    {
+        return VecExpression<LHS, RHS>(
+            lhs, rhs, lhs.size(), ct::frontend::Operation::sub);
     }
 
 }    // namespace ct

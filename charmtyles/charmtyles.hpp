@@ -14,10 +14,40 @@
 
 #pragma once
 
-#include <charmtyles/frontend/AST.hpp>
+#include <charmtyles/util/AST.hpp>
+
 #include <charmtyles/frontend/vector.hpp>
 #include <charmtyles/frontend/vector_operators.hpp>
 
 #include <charmtyles/backend/charmtyles_base.hpp>
+
+namespace ct {
+
+    void init(std::size_t num_pes)
+    {
+        CProxy_set_future set_future_proxy = CProxy_set_future::ckNew();
+        CProxy_charmtyles_base proxy =
+            CProxy_charmtyles_base::ckNew(num_pes, set_future_proxy, num_pes);
+        ct_proxy = proxy;
+    }
+
+    void sync()
+    {
+        using AST = std::vector<ct::frontend::ASTNode>;
+
+        ct::frontend::ASTQueue& queue =
+            CT_ACCESS_SINGLETON(ct::frontend::ast_queue);
+
+        int sdag_index = queue.sdag_index();
+        std::vector<AST> instr_list = queue.dispatch();
+        ck::future<bool> is_done;
+
+        ct_proxy.compute(sdag_index, instr_list, is_done);
+
+        is_done.get();
+
+        return;
+    }
+}    // namespace ct
 
 #include <charmtyles/backend/libcharmtyles.def.h>

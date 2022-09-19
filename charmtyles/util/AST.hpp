@@ -20,6 +20,8 @@
 #include <variant>
 #include <vector>
 
+#include "charm++.h"
+
 namespace ct { namespace frontend {
 
     template <typename T, typename SingletonClass>
@@ -85,24 +87,40 @@ namespace ct { namespace frontend {
     {
         std::size_t name_;
         Operation operation_;
+        std::size_t copy_id_;
         double value_;
         Type type_;
 
-        std::variant<std::size_t, std::pair<std::size_t, std::size_t>>
-            dimensions_;
+        std::size_t vec_dim_;
+        std::pair<std::size_t, std::size_t> mat_dim_;
 
         std::size_t left_;
         std::size_t right_;
 
         ASTNode() = default;
 
+        void pup(PUP::er& p)
+        {
+            p | name_;
+            p | operation_;
+            p | copy_id_;
+            p | value_;
+            p | type_;
+            p | vec_dim_;
+            p | mat_dim_;
+            p | left_;
+            p | right_;
+        }
+
         explicit ASTNode(
             std::size_t name, Operation op, Type t, std::size_t size)
           : name_(name)
           , operation_(op)
+          , copy_id_(-1)
           , value_(0)
           , type_(t)
-          , dimensions_(size)
+          , vec_dim_(size)
+          , mat_dim_({-1, -1})
           , left_(-1)
           , right_(-1)
         {
@@ -112,9 +130,24 @@ namespace ct { namespace frontend {
             std::size_t size)
           : name_(name)
           , operation_(op)
+          , copy_id_(-1)
           , value_(value)
           , type_(t)
-          , dimensions_(size)
+          , vec_dim_(size)
+          , mat_dim_({-1, -1})
+          , left_(-1)
+          , right_(-1)
+        {
+        }
+
+        explicit ASTNode(std::size_t name, Operation op, ASTNode const& node)
+          : name_(name)
+          , operation_(op)
+          , copy_id_(node.name_)
+          , value_(0)
+          , type_(node.type_)
+          , vec_dim_(node.vec_dim_)
+          , mat_dim_(node.mat_dim_)
           , left_(-1)
           , right_(-1)
         {
@@ -124,9 +157,11 @@ namespace ct { namespace frontend {
             std::size_t rows, std::size_t cols)
           : name_(name)
           , operation_(op)
+          , copy_id_(-1)
           , value_(0)
           , type_(t)
-          , dimensions_(std::make_pair(rows, cols))
+          , vec_dim_(-1)
+          , mat_dim_({rows, cols})
           , left_(-1)
           , right_(-1)
         {
@@ -138,53 +173,58 @@ namespace ct { namespace frontend {
         ASTNode& operator=(ASTNode&& other) = default;
     };
 
+    bool is_init_type(ct::frontend::Operation op)
+    {
+        if (op == ct::frontend::Operation::noop)
+            return true;
+
+        if (op == ct::frontend::Operation::init_value)
+            return true;
+
+        if (op == ct::frontend::Operation::init_random)
+            return true;
+
+        if (op == ct::frontend::Operation::copy)
+            return true;
+
+        return false;
+    }
+
+    void parse_ast(std::vector<ASTNode> const& instr, std::size_t index)
+    {
+        if (index == 0 && !is_init_type(instr[index].operation_))
+            ckout << instr[index].name_ << " = ";
+
+        switch (instr[index].operation_)
+        {
+        case Operation::init_random:
+            ckout << instr[index].name_ << " = [RANDOM]";
+            return;
+        case Operation::init_value:
+            ckout << instr[index].name_ << " = VALUE[" << instr[index].value_
+                  << "]";
+            return;
+        case Operation::noop:
+            ckout << instr[index].name_;
+            return;
+        case Operation::copy:
+            ckout << instr[index].name_ << " = " << instr[index].copy_id_;
+            return;
+        case Operation::add:
+            parse_ast(instr, instr[index].left_);
+            ckout << " + ";
+            parse_ast(instr, instr[index].right_);
+            return;
+        case Operation::sub:
+            parse_ast(instr, instr[index].left_);
+            ckout << " - ";
+            parse_ast(instr, instr[index].right_);
+            return;
+        }
+    }
+
     class ASTQueue
     {
-        bool is_init_type(ct::frontend::Operation op) const
-        {
-            if (op == ct::frontend::Operation::noop)
-                return true;
-
-            if (op == ct::frontend::Operation::init_value)
-                return true;
-
-            if (op == ct::frontend::Operation::init_random)
-                return true;
-
-            return false;
-        }
-
-        void parse_ast(
-            std::vector<ASTNode> const& instr, std::size_t index) const
-        {
-            if (index == 0 && !is_init_type(instr[index].operation_))
-                std::cout << instr[index].name_ << " = ";
-
-            switch (instr[index].operation_)
-            {
-            case Operation::init_random:
-                std::cout << instr[index].name_ << " = [RANDOM]";
-                return;
-            case Operation::init_value:
-                std::cout << instr[index].name_ << " = VALUE["
-                          << instr[index].value_ << "]";
-                return;
-            case Operation::noop:
-                std::cout << instr[index].name_;
-                return;
-            case Operation::add:
-                parse_ast(instr, instr[index].left_);
-                std::cout << " + ";
-                parse_ast(instr, instr[index].right_);
-                return;
-            case Operation::sub:
-                parse_ast(instr, instr[index].left_);
-                std::cout << "-";
-                parse_ast(instr, instr[index].right_);
-                return;
-            }
-        }
-
     public:
         using AST = std::vector<ASTNode>;
 
@@ -202,18 +242,39 @@ namespace ct { namespace frontend {
 
         void print_instructions() const
         {
-            std::cout << "Printing Instructions:" << std::endl;
+            ckout << "Printing Instructions:" << endl;
 
             for (int i = 0; i != ast_q.size(); ++i)
             {
-                std::cout << "Instruction " << i << ": ";
+                ckout << "Instruction " << i << ": ";
                 parse_ast(ast_q[i], 0);
-                std::cout << std::endl;
+                ckout << endl;
             }
+        }
+
+        std::vector<AST> dispatch()
+        {
+            std::vector<AST> instr_list = ast_q;
+            ast_q.clear();
+            ++sdag_index_;
+
+            return instr_list;
+        }
+
+        int sdag_index() const
+        {
+            return sdag_index_;
+        }
+
+        void pup(PUP::er& p)
+        {
+            p | ast_q;
+            p | sdag_index_;
         }
 
     private:
         std::vector<AST> ast_q;
+        int sdag_index_ = 0;
     };
 
     CT_GENERATE_SINGLETON(ASTQueue, ast_queue);

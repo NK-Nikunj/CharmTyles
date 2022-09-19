@@ -17,9 +17,40 @@
 
 module libcharmtyles
 {
+    include "charmtyles/util/AST.hpp";
+
+    readonly CProxy_charmtyles_base ct_proxy;
+
+    chare set_future
+    {
+        entry set_future();
+
+        entry [reductiontarget] void mark_complete(ck::future<bool>);
+    }
 
     array[1D] charmtyles_base
     {
-        entry charmtyles_base(int);   // Number of Partitions
+        entry charmtyles_base(int, CProxy_set_future);   // Number of Partitions
+
+        entry void main_kernel() {
+            for (; SDAG_INDEX > -1;) {
+                // Actual computation kernel
+                when compute[SDAG_INDEX](int sdag_index,
+                    std::vector<std::vector<ct::frontend::ASTNode>> instr_list,
+                    ck::future<bool> is_done) {
+                serial "compute"
+                {
+                    // print_instructions(instr_list);
+
+                    update_partitions(instr_list);
+
+                    CkCallback cb(CkReductionTarget(set_future, mark_complete), set_future_proxy);
+                    contribute(cb);
+                }
+                }
+            }
+        }
+
+        entry void compute(int, std::vector<std::vector<ct::frontend::ASTNode>>, ck::future<bool>);
     }
 }

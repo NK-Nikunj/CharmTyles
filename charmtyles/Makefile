@@ -31,5 +31,5 @@ distclean: clean
 	rm libcharmtyles.a
 
 clean:
-	cd core; rm *.decl.h *.def.h
+	cd backend; rm *.decl.h *.def.h
 	rm libcharmtyles.a

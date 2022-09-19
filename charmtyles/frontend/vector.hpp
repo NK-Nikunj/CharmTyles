@@ -14,9 +14,10 @@
 
 #pragma once
 
+#include <cassert>
 #include <cstdint>
 
-#include <charmtyles/frontend/AST.hpp>
+#include <charmtyles/util/AST.hpp>
 
 namespace ct {
 
@@ -99,6 +100,8 @@ namespace ct {
         friend class VecExpression;
 
     public:
+        vector() = default;
+
         explicit vector(std::size_t size)
           : id_(ct::frontend::get_vector_id())
           , size_(size)
@@ -123,6 +126,15 @@ namespace ct {
             queue.insert(node_);
         }
 
+        vector(vector const& other)
+          : id_(ct::frontend::get_vector_id())
+          , size_(other.size_)
+          , node_(id_, ct::frontend::Operation::copy, other.node_)
+        {
+        }
+
+        vector(vector&& other) = delete;
+
         template <typename Expression>
         vector(Expression const& e)
           : id_(ct::frontend::get_vector_id())
@@ -132,11 +144,48 @@ namespace ct {
 
             root.name_ = id_;
             node_ = ct::frontend::ASTNode{root};
-            size_ = std::get<std::size_t>(root.dimensions_);
+            size_ = root.vec_dim_;
 
             ct::frontend::ASTQueue& queue =
                 CT_ACCESS_SINGLETON(ct::frontend::ast_queue);
             queue.insert(instr);
+        }
+
+        template <typename Expression>
+        vector& operator=(Expression const& e)
+        {
+            std::vector<ct::frontend::ASTNode> instr = e();
+            ct::frontend::ASTNode& root = instr.front();
+
+            root.name_ = id_;
+
+            ct::frontend::ASTQueue& queue =
+                CT_ACCESS_SINGLETON(ct::frontend::ast_queue);
+            queue.insert(instr);
+
+            return *this;
+        }
+
+        vector& operator=(vector const& other)
+        {
+            assert((size_ == other.size_) && "Vector Dimensions do not match!");
+
+            ct::frontend::ASTNode node(
+                id_, ct::frontend::Operation::copy, other.node_);
+
+            ct::frontend::ASTQueue& queue =
+                CT_ACCESS_SINGLETON(ct::frontend::ast_queue);
+
+            queue.insert(node);
+
+            return *this;
+        }
+
+        void pup(PUP::er& p)
+        {
+            p | id_;
+            p | size_;
+            p | node_;
         }
 
         std::size_t size() const
