@@ -21,7 +21,20 @@ class Main : public CBase_Main
 public:
     Main(CkArgMsg* msg)
     {
+        int num_pes = 6;
+        if (msg->argc > 1)
+            num_pes = atoi(msg->argv[1]);
+
+        ct::init(num_pes);
+
+        thisProxy.benchmark();
+    }
+
+    void benchmark()
+    {
         constexpr std::size_t VEC_SIZE = 10000000;
+
+        double start = CkWallTimer();
 
         ct::vector A{VEC_SIZE, 1.};
         ct::vector B{VEC_SIZE, 2.};
@@ -30,15 +43,15 @@ public:
 
         ct::vector E = A + B + C + D;
 
-        ct::vector F = (A + B) - (E - C + D);
+        // ct::frontend::ASTQueue& queue =
+        //     CT_ACCESS_SINGLETON(ct::frontend::ast_queue);
+        // queue.print_instructions();
 
-        A = A + B;
+        ct::sync();
 
-        E = D;
+        double end = CkWallTimer();
 
-        ct::frontend::ASTQueue& queue =
-            CT_ACCESS_SINGLETON(ct::frontend::ast_queue);
-        queue.print_instructions();
+        ckout << "Execution Time: " << end - start << endl;
 
         CkExit();
     }
