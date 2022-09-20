@@ -15,6 +15,7 @@
 #pragma once
 
 #include <charmtyles/util/AST.hpp>
+#include <charmtyles/util/view_vector.hpp>
 
 #include <charmtyles/frontend/vector.hpp>
 #include <charmtyles/frontend/vector_operators.hpp>

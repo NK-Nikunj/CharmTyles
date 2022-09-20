@@ -16,6 +16,8 @@
 
 #include <charmtyles/backend/libcharmtyles.decl.h>
 
+#include <charmtyles/util/view_vector.hpp>
+
 #include <eigen3/Eigen/Core>
 
 /* readonly */ CProxy_charmtyles_base ct_proxy;
@@ -53,6 +55,8 @@ class charmtyles_base : public CBase_charmtyles_base
                        instruction, node.left_, iter_index) -
                 execute_ast_vector_index(instruction, node.right_, iter_index);
         }
+
+        return 0.;
     }
 
     std::size_t get_vec_dim(std::size_t total_size)
@@ -101,13 +105,10 @@ class charmtyles_base : public CBase_charmtyles_base
 
             if (node.type_ == ct::frontend::Type::vector)
             {
-                CkAssert((vec_map.size() + 1 == node_id) &&
-                    "A vector is initialized before a dependent vector "
-                    "initialization.");
-
                 std::size_t vec_dim = get_vec_dim(node.vec_dim_);
+
                 // TODO: Do random initialization here
-                vec_map.emplace_back(std::vector<double>(vec_dim, 0));
+                vec_map[node_id] = ct::view_vector<double>{vec_dim};
             }
 
             return;
@@ -116,13 +117,10 @@ class charmtyles_base : public CBase_charmtyles_base
 
             if (node.type_ == ct::frontend::Type::vector)
             {
-                CkAssert((vec_map.size() + 1 == node_id) &&
-                    "A vector is initialized before a dependent vector "
-                    "initialization.");
-
                 std::size_t vec_dim = get_vec_dim(node.vec_dim_);
                 // TODO: Do random initialization here
-                vec_map.emplace_back(std::vector<double>(vec_dim, node.value_));
+                vec_map[node_id] =
+                    ct::view_vector<double>{vec_dim, node.value_};
             }
 
             return;
@@ -135,9 +133,10 @@ class charmtyles_base : public CBase_charmtyles_base
                 // Is this a new node?
                 if (node_id == vec_map.size())
                 {
+                    vec_map.resize(2 * vec_map.size());
                     std::size_t vec_dim = get_vec_dim(node.vec_dim_);
-                    // Create a new node first
-                    vec_map.emplace_back(std::vector<double>(vec_dim));
+
+                    vec_map[node_id] = ct::view_vector<double>{};
                 }
 
                 // Main addition kernel
@@ -159,13 +158,14 @@ public:
       : num_partitions(num_chares)
       , SDAG_INDEX(0)
     {
+        vec_map.resize(1000);
         set_future_proxy = proxy;
         thisProxy[thisIndex].main_kernel();
     }
 
 private:
     int num_partitions;
-    std::vector<std::vector<double>> vec_map;
+    std::vector<ct::view_vector<double>> vec_map;
 
     int SDAG_INDEX;
     CProxy_set_future set_future_proxy;

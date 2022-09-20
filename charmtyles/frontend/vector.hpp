@@ -16,6 +16,7 @@
 
 #include <cassert>
 #include <cstdint>
+#include <type_traits>
 
 #include <charmtyles/util/AST.hpp>
 
@@ -210,4 +211,36 @@ namespace ct {
         // AST Node Reference
         ct::frontend::ASTNode node_;
     };
+
+    namespace traits {
+
+        template <typename T>
+        struct isVecTypeImpl
+        {
+        };
+
+        template <>
+        struct isVecTypeImpl<ct::vector>
+        {
+            using type = void;
+        };
+
+        template <typename... Ts>
+        struct isVecTypeImpl<ct::VecExpression<Ts...>>
+        {
+            using type = void;
+        };
+
+        template <typename LHS, typename RHS>
+        struct isVecType
+        {
+            using type_LHS =
+                typename isVecTypeImpl<typename std::decay<LHS>::type>::type;
+            using type_RHS =
+                typename isVecTypeImpl<typename std::decay<RHS>::type>::type;
+
+            using type = std::enable_if_t<std::is_same_v<type_LHS, type_RHS>>;
+        };
+    }    // namespace traits
+
 }    // namespace ct

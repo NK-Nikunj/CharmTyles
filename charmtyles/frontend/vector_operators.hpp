@@ -19,14 +19,16 @@
 
 namespace ct {
 
-    template <typename LHS, typename RHS>
+    template <typename LHS, typename RHS,
+        typename = typename ct::traits::isVecType<LHS, RHS>::type>
     VecExpression<LHS, RHS> operator+(LHS const& lhs, RHS const& rhs)
     {
         return VecExpression<LHS, RHS>(
             lhs, rhs, lhs.size(), ct::frontend::Operation::add);
     }
 
-    template <typename LHS, typename RHS>
+    template <typename LHS, typename RHS,
+        typename = typename ct::traits::isVecType<LHS, RHS>::type>
     VecExpression<LHS, RHS> operator-(LHS const& lhs, RHS const& rhs)
     {
         return VecExpression<LHS, RHS>(
