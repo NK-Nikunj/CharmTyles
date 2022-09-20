@@ -71,6 +71,7 @@ namespace ct {
           : data_(new T[size])
           , size_(size)
         {
+            ckout << "View vector with size: " << size_ << endl;
         }
 
         explicit view_vector(std::size_t size, T value)
@@ -85,6 +86,8 @@ namespace ct {
           : data_(new T[other.size_])
           , size_(other.size_)
         {
+            // ckout << "Copy constructor called" << endl;
+            // ckout << "Size: " << other.size_ << endl;
             std::copy(other.data_, other.data_ + other.size_, data_);
         }
 
@@ -92,6 +95,8 @@ namespace ct {
           : data_(other.data_)
           , size_(other.size_)
         {
+            ckout << "Move constructor called" << endl;
+            ckout << "Size: " << other.size_ << endl;
             other.data_ = nullptr;
         }
 

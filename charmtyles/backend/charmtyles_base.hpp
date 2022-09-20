@@ -105,10 +105,13 @@ class charmtyles_base : public CBase_charmtyles_base
 
             if (node.type_ == ct::frontend::Type::vector)
             {
-                std::size_t vec_dim = get_vec_dim(node.vec_dim_);
+                CkAssert((vec_map.size() + 1 == node_id) &&
+                    "A vector is initialized before a dependent vector "
+                    "initialization.");
 
+                std::size_t vec_dim = get_vec_dim(node.vec_dim_);
                 // TODO: Do random initialization here
-                vec_map[node_id] = ct::view_vector<double>{vec_dim};
+                vec_map.emplace_back(Eigen::VectorXd::Random(vec_dim));
             }
 
             return;
@@ -117,10 +120,14 @@ class charmtyles_base : public CBase_charmtyles_base
 
             if (node.type_ == ct::frontend::Type::vector)
             {
+                CkAssert((vec_map.size() + 1 == node_id) &&
+                    "A vector is initialized before a dependent vector "
+                    "initialization.");
+
                 std::size_t vec_dim = get_vec_dim(node.vec_dim_);
                 // TODO: Do random initialization here
-                vec_map[node_id] =
-                    ct::view_vector<double>{vec_dim, node.value_};
+                vec_map.emplace_back(
+                    Eigen::VectorXd::Constant(vec_dim, node.value_));
             }
 
             return;
@@ -133,10 +140,9 @@ class charmtyles_base : public CBase_charmtyles_base
                 // Is this a new node?
                 if (node_id == vec_map.size())
                 {
-                    vec_map.resize(2 * vec_map.size());
                     std::size_t vec_dim = get_vec_dim(node.vec_dim_);
-
-                    vec_map[node_id] = ct::view_vector<double>{};
+                    // Create a new node first
+                    vec_map.emplace_back(Eigen::VectorXd(vec_dim));
                 }
 
                 // Main addition kernel
@@ -158,14 +164,14 @@ public:
       : num_partitions(num_chares)
       , SDAG_INDEX(0)
     {
-        vec_map.resize(1000);
+        vec_map.reserve(1000);
         set_future_proxy = proxy;
         thisProxy[thisIndex].main_kernel();
     }
 
 private:
     int num_partitions;
-    std::vector<ct::view_vector<double>> vec_map;
+    std::vector<Eigen::VectorXd> vec_map;
 
     int SDAG_INDEX;
     CProxy_set_future set_future_proxy;
