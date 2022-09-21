@@ -21,16 +21,25 @@
 #include <eigen3/Eigen/Core>
 
 /* readonly */ CProxy_charmtyles_base ct_proxy;
+/* readonly */ CProxy_set_future sf_proxy;
 
 class set_future : public CBase_set_future
 {
 public:
     set_future() = default;
 
-    void mark_complete(ck::future<bool> is_done)
+    void mark_complete()
     {
         is_done.set(true);
     }
+
+    void put_future(ck::future<bool> is_done_)
+    {
+        is_done = is_done_;
+    }
+
+private:
+    ck::future<bool> is_done;
 };
 
 class charmtyles_base : public CBase_charmtyles_base
@@ -50,7 +59,7 @@ class charmtyles_base : public CBase_charmtyles_base
                        instruction, node.left_, iter_index) +
                 execute_ast_vector_index(instruction, node.right_, iter_index);
 
-        case ::ct::frontend::Operation::sub:
+        case ct::frontend::Operation::sub:
             return execute_ast_vector_index(
                        instruction, node.left_, iter_index) -
                 execute_ast_vector_index(instruction, node.right_, iter_index);
@@ -59,15 +68,73 @@ class charmtyles_base : public CBase_charmtyles_base
         return 0.;
     }
 
+    double execute_ast_matrix_index(
+        std::vector<ct::frontend::ASTNode> const& instruction,
+        std::size_t curr_index, std::size_t iter_row, std::size_t iter_col)
+    {
+        const ct::frontend::ASTNode& node = instruction[curr_index];
+        switch (node.operation_)
+        {
+        case ct::frontend::Operation::noop:
+            return vec_map[node.name_](iter_row, iter_col);
+
+        case ct::frontend::Operation::add:
+            return execute_ast_matrix_index(
+                       instruction, node.left_, iter_row, iter_col) +
+                execute_ast_matrix_index(
+                    instruction, node.right_, iter_row, iter_col);
+
+        case ct::frontend::Operation::sub:
+            return execute_ast_matrix_index(
+                       instruction, node.left_, iter_row, iter_col) -
+                execute_ast_matrix_index(
+                    instruction, node.right_, iter_row, iter_col);
+        }
+
+        return 0.;
+    }
+
+    // Vector Dimensions
     std::size_t get_vec_dim(std::size_t total_size)
     {
         if (total_size % num_partitions == 0)
             return total_size / num_partitions;
 
-        if (thisIndex != num_partitions - 1)
-            return total_size / (num_partitions + 1);
+        std::size_t stored_elems = total_size / num_partitions;
+        std::size_t remainder_elems = total_size - stored_elems;
 
-        return total_size % (num_partitions + 1);
+        if (thisIndex < remainder_elems)
+            ++stored_elems;
+
+        return stored_elems;
+    }
+
+    // Matrix Dimensions
+    std::pair<std::size_t, std::size_t> get_mat_dim(
+        std::pair<std::size_t, std::size_t> mat_dims)
+    {
+        std::size_t rows = mat_dims.first;
+        std::size_t cols = mat_dims.second;
+        bool is_rows_fitted = false;
+        bool is_cols_fitted = false;
+
+        if (rows % num_partitions == 0)
+        {
+            rows = rows / num_partitions;
+            is_rows_fitted = true;
+        }
+        else if (thisIndex != rows)
+            rows = rows / (num_partitions + 1);
+
+        if (cols % num_partitions == 0)
+        {
+            cols = cols / num_partitions;
+            is_cols_fitted = true;
+        }
+        else
+            cols = cols / (num_partitions + 1);
+
+        // if (!is_rows_fitted && thisIndex)
     }
 
     void print_instructions(
@@ -113,6 +180,18 @@ class charmtyles_base : public CBase_charmtyles_base
                 // TODO: Do random initialization here
                 vec_map.emplace_back(Eigen::VectorXd::Random(vec_dim));
             }
+            else if (node.type_ == ct::frontend::Type::matrix)
+            {
+                CkAssert((mat_map.size() + 1 == node_id) &&
+                    "A vector is initialized before a dependent vector "
+                    "initialization.");
+
+                std::pair<std::size_t, std::size_t> mat_dim =
+                    get_mat_dim(node.mat_dim_);
+                // TODO: Do random initialization here
+                vec_map.emplace_back(
+                    Eigen::VectorXd::Random(mat_dim.first, mat_dim.second));
+            }
 
             return;
 
@@ -125,9 +204,21 @@ class charmtyles_base : public CBase_charmtyles_base
                     "initialization.");
 
                 std::size_t vec_dim = get_vec_dim(node.vec_dim_);
-                // TODO: Do random initialization here
+
                 vec_map.emplace_back(
                     Eigen::VectorXd::Constant(vec_dim, node.value_));
+            }
+            else if (node.type_ == ct::frontend::Type::matrix)
+            {
+                CkAssert((mat_map.size() + 1 == node_id) &&
+                    "A vector is initialized before a dependent vector "
+                    "initialization.");
+
+                std::pair<std::size_t, std::size_t> mat_dim =
+                    get_mat_dim(node.mat_dim_);
+                // TODO: Do random initialization here
+                vec_map.emplace_back(
+                    Eigen::VectorXd::Random(mat_dim.first, mat_dim.second));
             }
 
             return;
@@ -146,10 +237,37 @@ class charmtyles_base : public CBase_charmtyles_base
                 }
 
                 // Main addition kernel
+                // TODO: Find a way to use eigen instead
+                // TODO: VECTORIZE this loop!!
                 for (std::size_t i = 0; i != vec_map[node_id].size(); ++i)
                 {
                     vec_map[node_id][i] =
                         execute_ast_vector_index(instruction, 0, i);
+                }
+            }
+            else if (node.type_ == ct::frontend::Type::matrix)
+            {
+                // Is this a new node?
+                if (node_id == mat_map.size())
+                {
+                    std::pair<std::size_t, std::size_t> mat_dim =
+                        get_mat_dim(node.mat_dim_);
+                    // Create a new node first
+                    vec_map.emplace_back(
+                        Eigen::VectorXd(mat_dim.first, mat_dim.second));
+                }
+
+                // Main addition kernel
+                // TODO: Find a way to use eigen instead
+                // TODO: VECTORIZE this loop!!
+                for (std::size_t row = 0; row != mat_map[node_id].rows(); ++row)
+                {
+                    for (std::size_t col = 0; col != mat_map[node_id].cols();
+                         ++col)
+                    {
+                        mat_map[node_id](row, col) =
+                            execute_ast_matrix_index(instruction, 0, row, col);
+                    }
                 }
             }
 
@@ -165,6 +283,7 @@ public:
       , SDAG_INDEX(0)
     {
         vec_map.reserve(1000);
+        mat_map.reserve(1000);
         set_future_proxy = proxy;
         thisProxy[thisIndex].main_kernel();
     }
@@ -172,6 +291,7 @@ public:
 private:
     int num_partitions;
     std::vector<Eigen::VectorXd> vec_map;
+    std::vector<Eigen::MatrixXd> mat_map;
 
     int SDAG_INDEX;
     CProxy_set_future set_future_proxy;

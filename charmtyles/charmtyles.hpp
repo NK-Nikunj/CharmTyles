@@ -17,8 +17,9 @@
 #include <charmtyles/util/AST.hpp>
 #include <charmtyles/util/view_vector.hpp>
 
+#include <charmtyles/frontend/matrix.hpp>
+#include <charmtyles/frontend/operators.hpp>
 #include <charmtyles/frontend/vector.hpp>
-#include <charmtyles/frontend/vector_operators.hpp>
 
 #include <charmtyles/backend/charmtyles_base.hpp>
 
@@ -30,6 +31,7 @@ namespace ct {
         CProxy_charmtyles_base proxy =
             CProxy_charmtyles_base::ckNew(num_pes, set_future_proxy, num_pes);
         ct_proxy = proxy;
+        sf_proxy = set_future_proxy;
     }
 
     void sync()
@@ -43,7 +45,8 @@ namespace ct {
         std::vector<AST> instr_list = queue.dispatch();
         ck::future<bool> is_done;
 
-        ct_proxy.compute(sdag_index, instr_list, is_done);
+        ct_proxy.compute(sdag_index, instr_list);
+        sf_proxy.put_future(is_done);
 
         is_done.get();
 

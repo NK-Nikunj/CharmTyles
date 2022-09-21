@@ -22,20 +22,21 @@
 
 namespace ct {
 
-    // User Facing ct::vector class
-    class vector
+    // User Facing ct::matrix class
+    class matrix
     {
         template <typename LHS, typename RHS>
         friend class Expression;
 
     public:
-        vector() = default;
+        matrix() = default;
 
-        explicit vector(std::size_t size)
-          : id_(ct::frontend::get_vector_id())
-          , size_(size)
+        explicit matrix(std::size_t rows, std::size_t cols)
+          : id_(ct::frontend::get_matrix_id())
+          , rows_(rows)
+          , cols_(cols)
           , node_(id_, ct::frontend::Operation::init_random,
-                ct::frontend::Type::vector, size_)
+                ct::frontend::Type::matrix, rows, cols)
         {
             ct::frontend::ASTQueue& queue =
                 CT_ACCESS_SINGLETON(ct::frontend::ast_queue);
@@ -43,11 +44,12 @@ namespace ct {
             queue.insert(node_);
         }
 
-        explicit vector(std::size_t size, double value)
-          : id_(ct::frontend::get_vector_id())
-          , size_(size)
+        explicit matrix(std::size_t rows, std::size_t cols, double value)
+          : id_(ct::frontend::get_matrix_id())
+          , rows_(rows)
+          , cols_(cols)
           , node_(id_, ct::frontend::Operation::init_value, value,
-                ct::frontend::Type::vector, size_)
+                ct::frontend::Type::matrix, rows, cols)
         {
             ct::frontend::ASTQueue& queue =
                 CT_ACCESS_SINGLETON(ct::frontend::ast_queue);
@@ -55,25 +57,27 @@ namespace ct {
             queue.insert(node_);
         }
 
-        vector(vector const& other)
-          : id_(ct::frontend::get_vector_id())
-          , size_(other.size_)
+        matrix(matrix const& other)
+          : id_(ct::frontend::get_matrix_id())
+          , rows_(other.rows_)
+          , cols_(other.cols_)
           , node_(id_, ct::frontend::Operation::copy, other.node_)
         {
         }
 
-        vector(vector&& other) = delete;
+        matrix(matrix&& other) = delete;
 
         template <typename Expression>
-        vector(Expression const& e)
-          : id_(ct::frontend::get_vector_id())
+        matrix(Expression const& e)
+          : id_(ct::frontend::get_matrix_id())
         {
             std::vector<ct::frontend::ASTNode> instr = e();
             ct::frontend::ASTNode& root = instr.front();
 
             root.name_ = id_;
             node_ = ct::frontend::ASTNode{root};
-            size_ = root.vec_dim_;
+            rows_ = root.mat_dim_.first;
+            cols_ = root.mat_dim_.second;
 
             ct::frontend::ASTQueue& queue =
                 CT_ACCESS_SINGLETON(ct::frontend::ast_queue);
@@ -81,7 +85,7 @@ namespace ct {
         }
 
         template <typename Expression>
-        vector& operator=(Expression const& e)
+        matrix& operator=(Expression const& e)
         {
             std::vector<ct::frontend::ASTNode> instr = e();
             ct::frontend::ASTNode& root = instr.front();
@@ -95,9 +99,10 @@ namespace ct {
             return *this;
         }
 
-        vector& operator=(vector const& other)
+        matrix& operator=(matrix const& other)
         {
-            assert((size_ == other.size_) && "Vector Dimensions do not match!");
+            assert((rows_ == other.rows_ && cols_ == other.cols_) &&
+                "Vector Dimensions do not match!");
 
             ct::frontend::ASTNode node(
                 id_, ct::frontend::Operation::copy, other.node_);
@@ -113,13 +118,19 @@ namespace ct {
         void pup(PUP::er& p)
         {
             p | id_;
-            p | size_;
+            p | rows_;
+            p | cols_;
             p | node_;
         }
 
-        std::size_t size() const
+        std::size_t rows() const
         {
-            return size_;
+            return rows_;
+        }
+
+        std::size_t cols() const
+        {
+            return cols_;
         }
 
     private:
@@ -134,7 +145,8 @@ namespace ct {
         std::size_t id_;
 
         // Size of the Vector
-        std::size_t size_;
+        std::size_t rows_;
+        std::size_t cols_;
 
         // AST Node Reference
         ct::frontend::ASTNode node_;
@@ -143,7 +155,7 @@ namespace ct {
     namespace traits {
 
         template <>
-        struct isArrayTypeImpl<ct::vector>
+        struct isArrayTypeImpl<ct::matrix>
         {
             using type = void;
         };
