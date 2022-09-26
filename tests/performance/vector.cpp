@@ -25,10 +25,10 @@ public:
         int decomposition_factor = atoi(msg->argv[2]);
         int min_size = atoi(msg->argv[3]);
 
-        int block_size = std::max(
+        block_size = std::max(
             min_size, total_size / (CkNumPes() * decomposition_factor));
 
-        int num_chares = total_size / block_size;
+        num_chares = total_size / block_size;
 
         ckout << "TOTAL SIZE: " << total_size
               << ", DECOMPOSITION FACTOR: " << decomposition_factor
@@ -37,8 +37,8 @@ public:
               << ", BLOCK SIZE: " << block_size << endl;
 
         start_time = CkWallTimer();
-        CProxy_vector proxy =
-            CProxy_vector::ckNew(block_size, thisProxy, num_chares);
+        CProxy_eigen_vector proxy =
+            CProxy_eigen_vector::ckNew(block_size, thisProxy, num_chares);
         proxy.compute();
     }
 
@@ -46,18 +46,37 @@ public:
     {
         double end_time = CkWallTimer();
 
-        ckout << "EXECUTION TIME: " << end_time - start_time << endl;
-        CkExit();
+        if (++count == 1)
+        {
+            ckout << "EXECUTION TIME (Eigen Vector): " << end_time - start_time
+                  << endl;
+
+            start_time = CkWallTimer();
+            CProxy_std_vector proxy =
+                CProxy_std_vector::ckNew(block_size, thisProxy, num_chares);
+            proxy.compute();
+        }
+        else
+        {
+            ckout << "EXECUTION TIME (Std Vector): " << end_time - start_time
+                  << endl;
+
+            CkExit();
+        }
     }
 
 private:
+    int block_size;
+    int num_chares;
+
     double start_time;
+    int count = 0;
 };
 
-class vector : public CBase_vector
+class eigen_vector : public CBase_eigen_vector
 {
 public:
-    vector(int block_size, CProxy_Main proxy)
+    eigen_vector(int block_size, CProxy_Main proxy)
     {
         vect.push_back(Eigen::VectorXd::Constant(block_size, 0.));
         vect.push_back(Eigen::VectorXd::Constant(block_size, 1.));
@@ -77,6 +96,37 @@ public:
 
 private:
     std::vector<Eigen::VectorXd> vect;
+    CProxy_Main proxy_;
+};
+
+class std_vector : public CBase_std_vector
+{
+public:
+    std_vector(int block_size, CProxy_Main proxy)
+    {
+        vect.push_back(std::vector<double>(block_size, 0.));
+        vect.push_back(std::vector<double>(block_size, 1.));
+        vect.push_back(std::vector<double>(block_size, 1.));
+        vect.push_back(std::vector<double>(block_size, 1.));
+        vect.push_back(std::vector<double>(block_size, 1.));
+        proxy_ = proxy;
+    }
+
+    void compute()
+    {
+        Eigen::Map<Eigen::VectorXd> m1(vect[1].data(), vect[1].size());
+        Eigen::Map<Eigen::VectorXd> m2(vect[2].data(), vect[1].size());
+        Eigen::Map<Eigen::VectorXd> m3(vect[3].data(), vect[1].size());
+        Eigen::Map<Eigen::VectorXd> m4(vect[4].data(), vect[1].size());
+        Eigen::Map<Eigen::VectorXd> m5(vect[0].data(), vect[1].size());
+
+        m5 = m1 + m2 + m3 + m4;
+        CkCallback cb(CkReductionTarget(Main, finish), proxy_);
+        contribute(cb);
+    }
+
+private:
+    std::vector<std::vector<double>> vect;
     CProxy_Main proxy_;
 };
 

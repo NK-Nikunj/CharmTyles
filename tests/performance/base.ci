@@ -20,9 +20,15 @@ mainmodule base
         entry [reductiontarget] void finish();
     };
 
-    array[1D] vector
+    array[1D] eigen_vector
     {
-        entry vector(int, CProxy_Main);  // total_size, block_size
+        entry eigen_vector(int, CProxy_Main);  // total_size, block_size
+        entry void compute();
+    };
+
+    array[1D] std_vector
+    {
+        entry std_vector(int, CProxy_Main);  // total_size, block_size
         entry void compute();
     };
 }
