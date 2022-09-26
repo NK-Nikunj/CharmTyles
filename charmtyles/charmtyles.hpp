@@ -19,6 +19,7 @@
 
 #include <charmtyles/frontend/matrix.hpp>
 #include <charmtyles/frontend/operators.hpp>
+#include <charmtyles/frontend/scalar.hpp>
 #include <charmtyles/frontend/vector.hpp>
 
 #include <charmtyles/backend/charmtyles_base.hpp>

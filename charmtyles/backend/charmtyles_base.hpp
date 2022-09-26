@@ -110,6 +110,23 @@ class charmtyles_base : public CBase_charmtyles_base
     }
 
     // Matrix Dimensions
+    // square blocks on each chare
+    // One possibility: fix the size of each block
+    // 1024x1024 sized blocks
+    // Padding? Followed by optimization
+    // NumPEs => 6
+    //
+    // Chare array (1D) => NumPes 6
+    // Partitioning array/matrix => NumPes
+
+    // 4kx4k => 2D chare array 16 chares
+    // different chare arrays for partitions
+    // mxn nxk => They'll have different partitions
+
+    // Block Size: Vector => 1024; Matrix => 1024x1024
+    // Block Size: Vector => 256; Matrix => 1024x1024
+    // sqrt(2d chare arrays size) = 1d chare array size
+
     std::pair<std::size_t, std::size_t> get_mat_dim(
         std::pair<std::size_t, std::size_t> mat_dims)
     {
@@ -239,6 +256,16 @@ class charmtyles_base : public CBase_charmtyles_base
                 // Main addition kernel
                 // TODO: Find a way to use eigen instead
                 // TODO: VECTORIZE this loop!!
+                // vec_map[node_id] = execute_ast_vector(instruction, 0);
+                // Flatten the above AST to linear => Most important
+                //      postorder traversal => create temp
+                // Go through the AST and generate an Expression?
+                // a = b + c - d
+                // temp = c - d (EigenOp<>{c - d} => Eigen::matrix => construct c - d)
+                // a = b + temp
+                // linearized vector instruction
+                // generate separate loop for each and let compiler fuse them
+
                 for (std::size_t i = 0; i != vec_map[node_id].size(); ++i)
                 {
                     vec_map[node_id][i] =

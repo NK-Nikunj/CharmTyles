@@ -113,6 +113,36 @@ namespace ct {
                 p | right_;
             }
 
+            // Scalar constructor
+            explicit ASTNode(std::size_t name, Operation op, Type t)
+              : name_(name)
+              , operation_(op)
+              , copy_id_(-1)
+              , value_(0)
+              , type_(t)
+              , vec_dim_(-1)
+              , mat_dim_({-1, -1})
+              , left_(-1)
+              , right_(-1)
+            {
+            }
+
+            // Scalar constructor
+            explicit ASTNode(
+                std::size_t name, Operation op, Type t, double value)
+              : name_(name)
+              , operation_(op)
+              , copy_id_(-1)
+              , value_(value)
+              , type_(t)
+              , vec_dim_(-1)
+              , mat_dim_({-1, -1})
+              , left_(-1)
+              , right_(-1)
+            {
+            }
+
+            // Vector constructor
             explicit ASTNode(
                 std::size_t name, Operation op, Type t, std::size_t size)
               : name_(name)
@@ -331,11 +361,35 @@ namespace ct {
     class Expression
     {
     public:
+        // Vector Expression generator
         Expression(LHS const& lhs_, RHS const& rhs_, std::size_t size,
             ct::frontend::Operation op_)
           : lhs(lhs_)
           , rhs(rhs_)
           , size_(size)
+          , mat_dim_({-1, -1})
+          , op(op_)
+        {
+        }
+
+        // Matrix Expression generator
+        Expression(LHS const& lhs_, RHS const& rhs_, std::size_t row,
+            std::size_t cols, ct::frontend::Operation op_)
+          : lhs(lhs_)
+          , rhs(rhs_)
+          , size_(-1)
+          , mat_dim_(std::make_pair(row, cols))
+          , op(op_)
+        {
+        }
+
+        // Scalar Expression generator
+        Expression(
+            LHS const& lhs_, RHS const& rhs_, ct::frontend::Operation op_)
+          : lhs(lhs_)
+          , rhs(rhs_)
+          , size_(-1)
+          , mat_dim_({-1, -1})
           , op(op_)
         {
         }
@@ -345,8 +399,21 @@ namespace ct {
             std::vector<ct::frontend::ASTNode> left = lhs();
             std::vector<ct::frontend::ASTNode> right = rhs();
 
-            ct::frontend::ASTNode node{static_cast<std::size_t>(-1), op,
-                ct::frontend::Type::vector, size_};
+            ct::frontend::ASTNode node;
+
+            // Scalar node addition
+            if (size_ == -1 && mat_dim_.first == -1)
+                node = ct::frontend::ASTNode{static_cast<std::size_t>(-1), op,
+                    ct::frontend::Type::scalar};
+            // Matrix node addition
+            else if (size_ == -1)
+                node = ct::frontend::ASTNode{static_cast<std::size_t>(-1), op,
+                    ct::frontend::Type::matrix, mat_dim_.first,
+                    mat_dim_.second};
+            else
+                node = ct::frontend::ASTNode{static_cast<std::size_t>(-1), op,
+                    ct::frontend::Type::vector, size_};
+
             node.left_ = 1;
             node.right_ = left.size() + 1;
 
@@ -396,6 +463,7 @@ namespace ct {
         LHS const& lhs;
         RHS const& rhs;
         std::size_t size_;
+        std::pair<std::size_t, std::size_t> mat_dim_;
         ct::frontend::Operation op;
     };
 

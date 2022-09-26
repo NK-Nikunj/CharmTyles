@@ -17,6 +17,7 @@
 #include <charmtyles/util/AST.hpp>
 
 #include <charmtyles/frontend/matrix.hpp>
+#include <charmtyles/frontend/scalar.hpp>
 #include <charmtyles/frontend/vector.hpp>
 
 namespace ct {
@@ -55,6 +56,11 @@ namespace ct {
     {
         return Expression<LHS, RHS>(
             lhs, rhs, lhs.size(), ct::frontend::Operation::sub);
+    }
+
+    ct::scalar dot(ct::vector const& v1, ct::vector const& v2)
+    {
+        //
     }
 
 }    // namespace ct
